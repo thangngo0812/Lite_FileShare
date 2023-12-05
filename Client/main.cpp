@@ -7,6 +7,55 @@
 #include <arpa/inet.h>
 
 #define PORT 8081
+#define BUFFER_SIZE 1024
+
+// Hàm gửi tên file đến server
+void sendFilenameToServer(int client_fd, const char *file_path) {
+    send(client_fd, file_path, strlen(file_path), 0);
+}
+
+// Hàm gửi dữ liệu từ file đến server
+void sendFileToServer(int client_fd, const char *file_path) {
+    FILE *file = fopen(file_path, "rb");
+    if (file == NULL) {
+        printf("\nError opening file\n");
+        close(client_fd);
+        exit(EXIT_FAILURE);
+    }
+
+    char buffer[BUFFER_SIZE];
+    size_t bytesRead;
+
+    while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        send(client_fd, buffer, bytesRead, 0);
+    }
+
+    fclose(file);
+}
+
+void sendRequestToServer(int client_fd, const char *file_name) {
+    send(client_fd, file_name, strlen(file_name), 0);
+}
+
+void receiveFileFromServer(int client_fd, const char *save_path) {
+    FILE *received_file = fopen(save_path, "wb");
+    if (received_file == NULL) {
+        printf("\nError opening file\n");
+        close(client_fd);
+        exit(EXIT_FAILURE);
+    }
+
+    char buffer[BUFFER_SIZE];
+    size_t bytesReceived;
+
+    while ((bytesReceived = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0) {
+        fwrite(buffer, 1, bytesReceived, received_file);
+    }
+
+    fclose(received_file);
+    printf("File received successfully\n");
+}
+
 
 int main(int argc, char const *argv[]) {
     if (argc != 2) {
@@ -16,9 +65,8 @@ int main(int argc, char const *argv[]) {
 
     const char *file_path = argv[1];
 
-    int status, valread, client_fd;
+    int status, client_fd;
     struct sockaddr_in serv_addr;
-    FILE *file;
 
     if ((client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
         printf("\n Socket creation error \n");
@@ -38,27 +86,13 @@ int main(int argc, char const *argv[]) {
         return -1;
     }
 
-    file = fopen(file_path, "rb");
-    if (file == NULL) {
-        printf("\nError opening file\n");
-        close(client_fd);
-        return -1;
-    }
+    sendFilenameToServer(client_fd, file_path);
 
-    // Gửi tên file đến server trước
-    send(client_fd, file_path, strlen(file_path), 0);
-
-    char buffer[1024];
-    size_t bytesRead;
-
-    while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-        send(client_fd, buffer, bytesRead, 0);
-    }
+    sendFileToServer(client_fd, file_path);
 
     printf("File sent\n");
 
     close(client_fd);
-    fclose(file);
 
     return 0;
 }
