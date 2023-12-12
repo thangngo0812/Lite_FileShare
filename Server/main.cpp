@@ -4,17 +4,17 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <unistd.h>
+#include <time.h>
 
 #define PORT 8081
 #define BUFFER_SIZE 1024
 #define SAVE_PATH "/root/Desktop/WorkSpace/Lite_FileShare/Server/Saved_file/"
 
-int main(int argc, char const *argv[]) {
-    int server_fd, new_socket;
+int createServerSocket() {
+    int server_fd;
     struct sockaddr_in address;
     int opt = 1;
     socklen_t addrlen = sizeof(address);
-    char buffer[BUFFER_SIZE] = { 0 };
 
     if ((server_fd = socket(AF_INET, SOCK_STREAM, 0)) == 0) {
         perror("Socket failed");
@@ -40,12 +40,52 @@ int main(int argc, char const *argv[]) {
         exit(EXIT_FAILURE);
     }
 
+    printf("Server listening on port %d\n", PORT);
+
+    return server_fd;
+}
+
+int acceptClientConnection(int server_fd) {
+    struct sockaddr_in address;
+    socklen_t addrlen = sizeof(address);
+    int new_socket;
+
     if ((new_socket = accept(server_fd, (struct sockaddr *)&address, &addrlen)) < 0) {
         perror("Accept");
         exit(EXIT_FAILURE);
     }
+
+    printf("Client connected\n");
+
+    return new_socket;
+}
+
+#define FILE_INFO_PATH "/root/Desktop/WorkSpace/Lite_FileShare/Server/file_info.txt"
+
+void writeFileInfo(const char *filename) {
+    FILE *file_info = fopen(FILE_INFO_PATH, "a");
+    if (file_info != NULL) {
+        time_t raw_time;
+        struct tm *timeinfo;
+        char time_buffer[80];
+
+        time(&raw_time);
+        timeinfo = localtime(&raw_time);
+
+        strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
+
+        fprintf(file_info, "File: %s - Received at: %s\n", filename, time_buffer);
+
+        fclose(file_info);
+    } else {
+        printf("Không thể mở file để ghi thông tin\n");
+    }
+}
+
+void receiveFileFromClient(int client_fd) {
+    char buffer[BUFFER_SIZE];
     char filename_buffer[256];
-    int valread = recv(new_socket, filename_buffer, sizeof(filename_buffer), 0);
+    int valread = recv(client_fd, filename_buffer, sizeof(filename_buffer), 0);
     char *filename = strrchr(filename_buffer, '/');
     if (filename != NULL) {
         filename++;
@@ -65,7 +105,7 @@ int main(int argc, char const *argv[]) {
     size_t total_bytes_received = 0;
     int bytes_received;
 
-    while ((bytes_received = recv(new_socket, buffer, BUFFER_SIZE, 0)) > 0) {
+    while ((bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0) {
         total_bytes_received += bytes_received;
         fwrite(buffer, 1, bytes_received, received_file);
     }
@@ -73,7 +113,16 @@ int main(int argc, char const *argv[]) {
     fclose(received_file);
     printf("File received and saved successfully. Total bytes received: %zu\n", total_bytes_received);
 
-    close(new_socket);
+    writeFileInfo(filename); // Ghi thông tin về file vào file văn bản
+}
+
+int main(int argc, char const *argv[]) {
+    int server_fd = createServerSocket();
+    int client_fd = acceptClientConnection(server_fd);
+
+    receiveFileFromClient(client_fd);
+
+    close(client_fd);
     close(server_fd);
 
     return 0;

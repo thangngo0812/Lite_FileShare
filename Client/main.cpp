@@ -2,19 +2,42 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
-#include <netinet/in.h>
 #include <unistd.h>
 #include <arpa/inet.h>
 
 #define PORT 8081
 #define BUFFER_SIZE 1024
 
-// Hàm gửi tên file đến server
+
+int createClientSocket() {
+    int client_fd;
+    struct sockaddr_in serv_addr{};
+
+    if ((client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
+        printf("\n Socket creation error \n");
+        exit(EXIT_FAILURE);
+    }
+
+    serv_addr.sin_family = AF_INET;
+    serv_addr.sin_port = htons(PORT);
+
+    if (inet_pton(AF_INET, "10.225.1.98", &serv_addr.sin_addr) <= 0) {
+        printf("\nInvalid address/ Address not supported \n");
+        exit(EXIT_FAILURE);
+    }
+
+    if (connect(client_fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr)) < 0) {
+        printf("\nConnection Failed \n");
+        exit(EXIT_FAILURE);
+    }
+
+    return client_fd;
+}
+
 void sendFilenameToServer(int client_fd, const char *file_path) {
     send(client_fd, file_path, strlen(file_path), 0);
 }
 
-// Hàm gửi dữ liệu từ file đến server
 void sendFileToServer(int client_fd, const char *file_path) {
     FILE *file = fopen(file_path, "rb");
     if (file == NULL) {
@@ -31,6 +54,17 @@ void sendFileToServer(int client_fd, const char *file_path) {
     }
 
     fclose(file);
+}
+
+void sendFilenameAndFileToServer(const char *file_path) {
+    int client_fd = createClientSocket();
+
+    sendFilenameToServer(client_fd, file_path);
+    sendFileToServer(client_fd, file_path);
+
+    printf("File sent\n");
+
+    close(client_fd);
 }
 
 void sendRequestToServer(int client_fd, const char *file_name) {
@@ -64,35 +98,7 @@ int main(int argc, char const *argv[]) {
     }
 
     const char *file_path = argv[1];
-
-    int status, client_fd;
-    struct sockaddr_in serv_addr;
-
-    if ((client_fd = socket(AF_INET, SOCK_STREAM, 0)) < 0) {
-        printf("\n Socket creation error \n");
-        return -1;
-    }
-
-    serv_addr.sin_family = AF_INET;
-    serv_addr.sin_port = htons(PORT);
-
-    if (inet_pton(AF_INET, "10.225.1.98", &serv_addr.sin_addr) <= 0) {
-        printf("\nInvalid address/ Address not supported \n");
-        return -1;
-    }
-
-    if ((status = connect(client_fd, (struct sockaddr*)&serv_addr, sizeof(serv_addr))) < 0) {
-        printf("\nConnection Failed \n");
-        return -1;
-    }
-
-    sendFilenameToServer(client_fd, file_path);
-
-    sendFileToServer(client_fd, file_path);
-
-    printf("File sent\n");
-
-    close(client_fd);
+    sendFilenameAndFileToServer(file_path);
 
     return 0;
 }
