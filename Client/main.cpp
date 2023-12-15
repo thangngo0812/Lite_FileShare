@@ -4,6 +4,8 @@
 #include <sys/socket.h>
 #include <unistd.h>
 #include <arpa/inet.h>
+#include <iostream>
+
 
 #define PORT 8081
 #define BUFFER_SIZE 1024
@@ -53,52 +55,74 @@ void sendFileToServer(int client_fd, const char *file_path) {
         send(client_fd, buffer, bytesRead, 0);
     }
 
+
     fclose(file);
 }
 
-void sendFilenameAndFileToServer(const char *file_path) {
-    int client_fd = createClientSocket();
+void sendFilenameAndFileToServer(int client_fd, const char *file_path) {
 
     sendFilenameToServer(client_fd, file_path);
     sendFileToServer(client_fd, file_path);
 
-    printf("File sent\n");
+    printf("File uploaded\n");
 
     close(client_fd);
 }
-
-void sendRequestToServer(int client_fd, const char *file_name) {
-    send(client_fd, file_name, strlen(file_name), 0);
-}
-
-void receiveFileFromServer(int client_fd, const char *save_path) {
-    FILE *received_file = fopen(save_path, "wb");
-    if (received_file == NULL) {
-        printf("\nError opening file\n");
+void receiveFileFromServer(int client_fd, const char *file_path) {
+    FILE *file = fopen(file_path, "wb");
+    if (file == NULL) {
+        printf("\nError opening file for writing\n");
         close(client_fd);
         exit(EXIT_FAILURE);
     }
 
     char buffer[BUFFER_SIZE];
-    size_t bytesReceived;
+    size_t bytesRead;
 
-    while ((bytesReceived = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0) {
-        fwrite(buffer, 1, bytesReceived, received_file);
+    while ((bytesRead = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0) {
+        fwrite(buffer, 1, bytesRead, file);
     }
 
-    fclose(received_file);
-    printf("File received successfully\n");
+    fclose(file);
+}
+
+void downloadFileFromServer(int client_fd, const char *file_path) {
+
+    sendFilenameToServer(client_fd, file_path);
+
+    receiveFileFromServer(client_fd, file_path);
+
+    printf("File downloaded\n");
+
+    close(client_fd);
+}
+
+void sendRequesttoServer(int client_fd, int mode) {
+    std::cout << "Mode: " << mode << std::endl;
+    send(client_fd, &mode, sizeof(int), 0);
 }
 
 
 int main(int argc, char const *argv[]) {
-    if (argc != 2) {
-        printf("Usage: %s <file_path>\n", argv[0]);
+    if (argc != 3) {
+        printf("Usage: %s <file_path> <mode>\n", argv[0]);
         return -1;
     }
 
     const char *file_path = argv[1];
-    sendFilenameAndFileToServer(file_path);
+    int mode = atoi(argv[2]);
+    if (mode == 0) {
+        int client_fd = createClientSocket();
+        sendRequesttoServer(client_fd, mode);
+        sendFilenameAndFileToServer(client_fd, file_path);
+        close(client_fd);
+    } else {
+        int client_fd = createClientSocket();
+        sendRequesttoServer(client_fd, mode);
+        downloadFileFromServer(client_fd, file_path);
+        close(client_fd);
+    }
+
 
     return 0;
 }

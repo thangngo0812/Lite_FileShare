@@ -5,6 +5,7 @@
 #include <netinet/in.h>
 #include <unistd.h>
 #include <time.h>
+#include <iostream>
 
 #define PORT 8081
 #define BUFFER_SIZE 1024
@@ -78,7 +79,7 @@ void writeFileInfo(const char *filename) {
 
         fclose(file_info);
     } else {
-        printf("Không thể mở file để ghi thông tin\n");
+        printf("error\n");
     }
 }
 
@@ -113,14 +114,51 @@ void receiveFileFromClient(int client_fd) {
     fclose(received_file);
     printf("File received and saved successfully. Total bytes received: %zu\n", total_bytes_received);
 
-    writeFileInfo(filename); // Ghi thông tin về file vào file văn bản
+    writeFileInfo(filename);
 }
+void sendFileToClient(int client_fd, const char *file_path) {
+    FILE *file = fopen(file_path, "rb");
+    if (file == NULL) {
+        perror("Error opening file");
+        exit(EXIT_FAILURE);
+    }
+
+    char buffer[BUFFER_SIZE];
+    size_t bytesRead;
+
+    while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        send(client_fd, buffer, bytesRead, 0);
+    }
+
+    fclose(file);
+}
+
+int receiveModeFromClient(int client_fd) {
+    int mode;
+    std::cout << "Waiting for mode from client..." << std::endl;
+    int bytes_received = recv(client_fd, &mode, sizeof(int), 0);
+    if (bytes_received <= 0) {
+        // Xử lý khi không nhận được dữ liệu
+        return -1; // Hoặc giá trị khác đặc biệt để phân biệt lỗi
+    }
+    std::cout << "Received mode: " << mode << std::endl;
+    return mode;
+}
+
+
 
 int main(int argc, char const *argv[]) {
     int server_fd = createServerSocket();
     int client_fd = acceptClientConnection(server_fd);
+    int mode = receiveModeFromClient(client_fd);
+    if (mode == 0) {
+        receiveFileFromClient(client_fd);
+    } else {
+        //sendFileToClient(client_fd, file_path);
+    }
+    close(client_fd);
+    close(server_fd);
 
-    receiveFileFromClient(client_fd);
 
     close(client_fd);
     close(server_fd);
