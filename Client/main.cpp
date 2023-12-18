@@ -37,8 +37,28 @@ int createClientSocket() {
 }
 
 void sendFilenameToServer(int client_fd, const char *file_path) {
-    send(client_fd, file_path, strlen(file_path), 0);
+    char filename_buffer[256];
+    strncpy(filename_buffer, file_path, sizeof(filename_buffer));
+
+    size_t data_length = strlen(filename_buffer);
+
+    char *filename = strrchr(filename_buffer, '/');
+    if (filename != NULL) {
+        filename++;
+        std::cout << "filename: " << filename << std::endl;
+    } else {
+        filename = filename_buffer;
+        std::cout << "filename = Null: " << filename << std::endl;
+    }
+
+    std::cout << "filename size : " << data_length << std::endl;
+
+    send(client_fd, &data_length, sizeof(size_t), 0);
+
+    send(client_fd, filename, data_length, 0);
 }
+
+
 
 void sendFileToServer(int client_fd, const char *file_path) {
     FILE *file = fopen(file_path, "rb");
@@ -68,8 +88,11 @@ void sendFilenameAndFileToServer(int client_fd, const char *file_path) {
 
     close(client_fd);
 }
+
 void receiveFileFromServer(int client_fd, const char *file_path) {
+
     FILE *file = fopen(file_path, "wb");
+    std::cout<< "File path: "<< file_path<<std::endl;
     if (file == NULL) {
         printf("\nError opening file for writing\n");
         close(client_fd);

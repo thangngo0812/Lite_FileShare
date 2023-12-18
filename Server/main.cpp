@@ -87,15 +87,9 @@ void receiveFileFromClient(int client_fd) {
     char buffer[BUFFER_SIZE];
     char filename_buffer[256];
     int valread = recv(client_fd, filename_buffer, sizeof(filename_buffer), 0);
-    char *filename = strrchr(filename_buffer, '/');
-    if (filename != NULL) {
-        filename++;
-    } else {
-        filename = filename_buffer;
-    }
 
     char file_save_path[512];
-    snprintf(file_save_path, sizeof(file_save_path), "%s%s", SAVE_PATH, filename);
+    snprintf(file_save_path, sizeof(file_save_path), "%s%s", SAVE_PATH, filename_buffer);
     FILE *received_file = fopen(file_save_path, "wb");
 
     if (received_file == NULL) {
@@ -114,16 +108,28 @@ void receiveFileFromClient(int client_fd) {
     fclose(received_file);
     printf("File received and saved successfully. Total bytes received: %zu\n", total_bytes_received);
 
-    writeFileInfo(filename);
+    writeFileInfo(filename_buffer);
 }
-void sendFileToClient(int client_fd, const char *file_path) {
-    FILE *file = fopen(file_path, "rb");
+void sendFileToClient(int client_fd) {
+    char filename_buffer[256];
+    size_t data_length;
+    int received = recv(client_fd, &data_length, sizeof(size_t), 0);
+    std::cout<< "filename size:" << data_length <<std::endl;
+    int valread = recv(client_fd, filename_buffer, sizeof(filename_buffer), 0);
+    std::cout<< "filename size:" << filename_buffer <<std::endl;
+
+
+    char file_download_path[512];
+    snprintf(file_download_path, sizeof(file_download_path), "%s%s", SAVE_PATH, filename_buffer);
+    std::cout<< "filename :" << file_download_path <<std::endl;
+    FILE *file = fopen(file_download_path, "rb");
     if (file == NULL) {
         perror("Error opening file");
         exit(EXIT_FAILURE);
     }
 
     char buffer[BUFFER_SIZE];
+
     size_t bytesRead;
 
     while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
@@ -138,8 +144,7 @@ int receiveModeFromClient(int client_fd) {
     std::cout << "Waiting for mode from client..." << std::endl;
     int bytes_received = recv(client_fd, &mode, sizeof(int), 0);
     if (bytes_received <= 0) {
-        // Xử lý khi không nhận được dữ liệu
-        return -1; // Hoặc giá trị khác đặc biệt để phân biệt lỗi
+        return -1;
     }
     std::cout << "Received mode: " << mode << std::endl;
     return mode;
@@ -150,11 +155,12 @@ int receiveModeFromClient(int client_fd) {
 int main(int argc, char const *argv[]) {
     int server_fd = createServerSocket();
     int client_fd = acceptClientConnection(server_fd);
+
     int mode = receiveModeFromClient(client_fd);
     if (mode == 0) {
         receiveFileFromClient(client_fd);
     } else {
-        //sendFileToClient(client_fd, file_path);
+        sendFileToClient(client_fd);
     }
     close(client_fd);
     close(server_fd);
