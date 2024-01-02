@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <arpa/inet.h>
 #include <iostream>
+#include <map>
 
 
 #define PORT 8081
@@ -37,27 +38,19 @@ int createClientSocket() {
 }
 
 void sendFilenameToServer(int client_fd, const char *file_path) {
-    char filename_buffer[256];
-    strncpy(filename_buffer, file_path, sizeof(filename_buffer));
 
-    size_t data_length = strlen(filename_buffer);
-
-    char *filename = strrchr(filename_buffer, '/');
-    if (filename != NULL) {
-        filename++;
-        std::cout << "filename: " << filename << std::endl;
+    const char *filename = strrchr(file_path, '/');
+    if (filename == NULL) {
+        filename = file_path;
     } else {
-        filename = filename_buffer;
-        std::cout << "filename = Null: " << filename << std::endl;
+        filename++;
     }
 
-    std::cout << "filename size : " << data_length << std::endl;
-
+    size_t data_length = strlen(filename);
     send(client_fd, &data_length, sizeof(size_t), 0);
 
     send(client_fd, filename, data_length, 0);
 }
-
 
 
 void sendFileToServer(int client_fd, const char *file_path) {
@@ -68,13 +61,20 @@ void sendFileToServer(int client_fd, const char *file_path) {
         exit(EXIT_FAILURE);
     }
 
+    fseek(file, 0, SEEK_END);
+
+    size_t file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    std::cout<< "file_size: "<< file_size<<std::endl;
+
+    send(client_fd, &file_size, sizeof(size_t), 0);
+
     char buffer[BUFFER_SIZE];
-    size_t bytesRead;
+    size_t bytes_send;
 
-    while ((bytesRead = fread(buffer, 1, sizeof(buffer), file)) > 0) {
-        send(client_fd, buffer, bytesRead, 0);
+    while ((bytes_send = fread(buffer, 1, sizeof(buffer), file)) > 0) {
+        send(client_fd, buffer, bytes_send, 0);
     }
-
 
     fclose(file);
 }
@@ -125,27 +125,48 @@ void sendRequesttoServer(int client_fd, int mode) {
     send(client_fd, &mode, sizeof(int), 0);
 }
 
+enum TransferMode {
+    UPLOAD = 0,
+    DOWNLOAD = 1
+};
+
 
 int main(int argc, char const *argv[]) {
     if (argc != 3) {
-        printf("Usage: %s <file_path> <mode>\n", argv[0]);
+        std::cout << "Usage: " << argv[0] << " <file_path> <mode>\n";
         return -1;
     }
 
     const char *file_path = argv[1];
-    int mode = atoi(argv[2]);
-    if (mode == 0) {
+    std::string mode_str = argv[2];
+
+    std::map<std::string, TransferMode> modeMap = {
+            {"0", UPLOAD},
+            {"1", DOWNLOAD}
+    };
+
+    if (modeMap.find(mode_str) != modeMap.end()) {
+        TransferMode mode = modeMap[mode_str];
         int client_fd = createClientSocket();
-        sendRequesttoServer(client_fd, mode);
-        sendFilenameAndFileToServer(client_fd, file_path);
+
+        switch (mode) {
+            case UPLOAD:
+                sendRequesttoServer(client_fd, mode);
+                sendFilenameAndFileToServer(client_fd, file_path);
+                break;
+            case DOWNLOAD:
+                sendRequesttoServer(client_fd, mode);
+                downloadFileFromServer(client_fd, file_path);
+                break;
+            default:
+                std::cout << "Invalid mode\n";
+                break;
+        }
+
         close(client_fd);
     } else {
-        int client_fd = createClientSocket();
-        sendRequesttoServer(client_fd, mode);
-        downloadFileFromServer(client_fd, file_path);
-        close(client_fd);
+        std::cout << "Invalid mode\n";
     }
-
 
     return 0;
 }

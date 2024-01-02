@@ -86,7 +86,20 @@ void writeFileInfo(const char *filename) {
 void receiveFileFromClient(int client_fd) {
     char buffer[BUFFER_SIZE];
     char filename_buffer[256];
-    int valread = recv(client_fd, filename_buffer, sizeof(filename_buffer), 0);
+
+    size_t data_length;
+    int received = recv(client_fd, &data_length, sizeof(size_t), 0);
+
+    if (received > 0) {
+        received = recv(client_fd, filename_buffer, data_length, 0);
+        filename_buffer[data_length] = '\0';
+        std::cout<< "File name: "<< filename_buffer<<std::endl;
+    } else {
+        printf("Error receiving filename length\n");
+    }
+
+    size_t file_size =0;
+    int filesize_recv = recv(client_fd, &file_size, sizeof(size_t), 0);
 
     char file_save_path[512];
     snprintf(file_save_path, sizeof(file_save_path), "%s%s", SAVE_PATH, filename_buffer);
@@ -103,10 +116,17 @@ void receiveFileFromClient(int client_fd) {
     while ((bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0) {
         total_bytes_received += bytes_received;
         fwrite(buffer, 1, bytes_received, received_file);
+        std::cout<< "total_bytes_received: "<< total_bytes_received<<std::endl;
+
+    }
+
+    if (total_bytes_received != file_size) {
+        std::cout<< "total_bytes_received: "<< total_bytes_received <<" filesize: "<< file_size<<std::endl;
+        printf("\nReceived file size doesn't match expected size\n");
     }
 
     fclose(received_file);
-    printf("File received and saved successfully. Total bytes received: %zu\n", total_bytes_received);
+
 
     writeFileInfo(filename_buffer);
 }
@@ -114,9 +134,8 @@ void sendFileToClient(int client_fd) {
     char filename_buffer[256];
     size_t data_length;
     int received = recv(client_fd, &data_length, sizeof(size_t), 0);
-    std::cout<< "filename size:" << data_length <<std::endl;
     int valread = recv(client_fd, filename_buffer, sizeof(filename_buffer), 0);
-    std::cout<< "filename size:" << filename_buffer <<std::endl;
+    std::cout<< "filename size:" << filename_buffer << "revsize: "<< data_length <<std::endl;
 
 
     char file_download_path[512];
@@ -157,11 +176,15 @@ int main(int argc, char const *argv[]) {
     int client_fd = acceptClientConnection(server_fd);
 
     int mode = receiveModeFromClient(client_fd);
-    if (mode == 0) {
-        receiveFileFromClient(client_fd);
-    } else {
-        sendFileToClient(client_fd);
+    switch (mode) {
+        case 0:
+            receiveFileFromClient(client_fd);
+            break;
+        default:
+            sendFileToClient(client_fd);
+            break;
     }
+
     close(client_fd);
     close(server_fd);
 
