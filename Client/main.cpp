@@ -9,7 +9,7 @@
 
 
 #define PORT 8081
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 2048
 
 
 int createClientSocket() {
@@ -45,6 +45,7 @@ void sendFilenameToServer(int client_fd, const char *file_path) {
     } else {
         filename++;
     }
+    std::cout<< "name_of_filesent:  "<< filename<<std::endl;
 
     size_t data_length = strlen(filename);
     send(client_fd, &data_length, sizeof(size_t), 0);

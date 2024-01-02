@@ -49,3 +49,6 @@ File: custom_example.py - Received at: 2024-01-02 09:35:48
 File: custom_example.py - Received at: 2024-01-02 10:00:35
 File: custom_example.py - Received at: 2024-01-02 10:11:58
 File: LTW4180_01102023122156898_Plateimage.jpg - Received at: 2024-01-02 14:12:03
+File: LTW4180_01102023122156898_Plateimage.jpg - Received at: 2024-01-02 14:31:20
+File: OCR_LPR.zip - Received at: 2024-01-02 14:36:56
+File: LTW4180_01102023122156898_Plateimage.jpg - Received at: 2024-01-02 14:51:22

@@ -8,7 +8,7 @@
 #include <iostream>
 
 #define PORT 8081
-#define BUFFER_SIZE 1024
+#define BUFFER_SIZE 2048
 #define SAVE_PATH "/root/Desktop/WorkSpace/Lite_FileShare/Server/Saved_file/"
 
 int createServerSocket() {
@@ -134,7 +134,13 @@ void sendFileToClient(int client_fd) {
     char filename_buffer[256];
     size_t data_length;
     int received = recv(client_fd, &data_length, sizeof(size_t), 0);
-    int valread = recv(client_fd, filename_buffer, sizeof(filename_buffer), 0);
+
+    if (received > 0) {
+        received = recv(client_fd, filename_buffer, data_length, 0);
+        filename_buffer[data_length] = '\0';
+    } else {
+        printf("Error receiving filename length\n");
+    }
     std::cout<< "filename size:" << filename_buffer << "revsize: "<< data_length <<std::endl;
 
 
