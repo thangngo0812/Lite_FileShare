@@ -117,7 +117,6 @@ void receiveFileFromClient(int client_fd) {
         total_bytes_received += bytes_received;
         fwrite(buffer, 1, bytes_received, received_file);
         std::cout<< "total_bytes_received: "<< total_bytes_received<<std::endl;
-
     }
 
     if (total_bytes_received != file_size) {
@@ -141,17 +140,23 @@ void sendFileToClient(int client_fd) {
     } else {
         printf("Error receiving filename length\n");
     }
-    std::cout<< "filename size:" << filename_buffer << "revsize: "<< data_length <<std::endl;
-
 
     char file_download_path[512];
     snprintf(file_download_path, sizeof(file_download_path), "%s%s", SAVE_PATH, filename_buffer);
-    std::cout<< "filename :" << file_download_path <<std::endl;
     FILE *file = fopen(file_download_path, "rb");
     if (file == NULL) {
         perror("Error opening file");
         exit(EXIT_FAILURE);
     }
+
+
+    fseek(file, 0, SEEK_END);
+
+    size_t file_size = ftell(file);
+    fseek(file, 0, SEEK_SET);
+    std::cout<< "file_size_to_send: "<< file_size<<std::endl;
+
+    send(client_fd, &file_size, sizeof(size_t), 0);
 
     char buffer[BUFFER_SIZE];
 
@@ -194,9 +199,6 @@ int main(int argc, char const *argv[]) {
     close(client_fd);
     close(server_fd);
 
-
-    close(client_fd);
-    close(server_fd);
 
     return 0;
 }

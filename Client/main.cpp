@@ -10,6 +10,7 @@
 
 #define PORT 8081
 #define BUFFER_SIZE 2048
+#define folder_download_path "/root/Desktop/WorkSpace/Lite_FileShare/Client/Download"
 
 
 int createClientSocket() {
@@ -66,10 +67,9 @@ void sendFileToServer(int client_fd, const char *file_path) {
 
     size_t file_size = ftell(file);
     fseek(file, 0, SEEK_SET);
-    std::cout<< "file_size: "<< file_size<<std::endl;
+    std::cout<< "file_size_to_send: "<< file_size<<std::endl;
 
     send(client_fd, &file_size, sizeof(size_t), 0);
-
     char buffer[BUFFER_SIZE];
     size_t bytes_send;
 
@@ -91,21 +91,32 @@ void sendFilenameAndFileToServer(int client_fd, const char *file_path) {
 }
 
 void receiveFileFromServer(int client_fd, const char *file_path) {
-
-    FILE *file = fopen(file_path, "wb");
-    std::cout<< "File path: "<< file_path<<std::endl;
+    size_t file_size =0;
+    int filesize_recv = recv(client_fd, &file_size, sizeof(size_t), 0);
+    char full_path[100];
+    if (snprintf(full_path, sizeof(full_path), "%s/%s", folder_download_path, file_path) >= sizeof(full_path)) {
+        return;
+    }
+    FILE *file = fopen(full_path, "wb");
+    std::cout<< "File path: "<< full_path<<std::endl;
     if (file == NULL) {
         printf("\nError opening file for writing\n");
         close(client_fd);
         exit(EXIT_FAILURE);
     }
-
     char buffer[BUFFER_SIZE];
-    size_t bytesRead;
-
-    while ((bytesRead = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0) {
-        fwrite(buffer, 1, bytesRead, file);
+    size_t total_bytes_received = 0;
+    int bytes_received;
+    while ((bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0) {
+        total_bytes_received += bytes_received;
+        fwrite(buffer, 1, bytes_received, file);
+        std::cout<< "total_bytes_received: "<< total_bytes_received<<std::endl;
     }
+    if (total_bytes_received != file_size) {
+        std::cout<< "total_bytes_received: "<< total_bytes_received <<" filesize: "<< file_size<<std::endl;
+        printf("\nReceived file size doesn't match expected size\n");
+    }
+
 
     fclose(file);
 }
