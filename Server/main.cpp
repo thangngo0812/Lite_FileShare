@@ -63,7 +63,12 @@ int acceptClientConnection(int server_fd) {
 
 #define FILE_INFO_PATH "/root/Desktop/WorkSpace/Lite_FileShare/Server/file_info.txt"
 
-void writeFileInfo(const char *filename) {
+enum ActionType {
+    RECEIVE_ACTION,
+    SEND_ACTION
+};
+
+void writeFileInfo(const char *filename, ActionType action) {
     FILE *file_info = fopen(FILE_INFO_PATH, "a");
     if (file_info != NULL) {
         time_t raw_time;
@@ -75,13 +80,16 @@ void writeFileInfo(const char *filename) {
 
         strftime(time_buffer, sizeof(time_buffer), "%Y-%m-%d %H:%M:%S", timeinfo);
 
-        fprintf(file_info, "File: %s - Received at: %s\n", filename, time_buffer);
+        const char* actionText = (action == RECEIVE_ACTION) ? "Received at" : "Send at";
+
+        fprintf(file_info, "File: %s - %s: %s\n", filename, actionText, time_buffer);
 
         fclose(file_info);
     } else {
         printf("error\n");
     }
 }
+
 
 void receiveFileFromClient(int client_fd) {
     char buffer[BUFFER_SIZE];
@@ -125,9 +133,7 @@ void receiveFileFromClient(int client_fd) {
     }
 
     fclose(received_file);
-
-
-    writeFileInfo(filename_buffer);
+    writeFileInfo(filename_buffer, RECEIVE_ACTION);
 }
 void sendFileToClient(int client_fd) {
     char filename_buffer[256];
@@ -167,6 +173,7 @@ void sendFileToClient(int client_fd) {
     }
 
     fclose(file);
+    writeFileInfo(filename_buffer, SEND_ACTION);
 }
 
 int receiveModeFromClient(int client_fd) {

@@ -116,11 +116,8 @@ void receiveFileFromServer(int client_fd, const char *file_path) {
         std::cout<< "total_bytes_received: "<< total_bytes_received <<" filesize: "<< file_size<<std::endl;
         printf("\nReceived file size doesn't match expected size\n");
     }
-
-
     fclose(file);
 }
-
 void downloadFileFromServer(int client_fd, const char *file_path) {
 
     sendFilenameToServer(client_fd, file_path);
