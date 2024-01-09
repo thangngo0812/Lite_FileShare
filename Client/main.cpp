@@ -6,6 +6,7 @@
 #include <arpa/inet.h>
 #include <iostream>
 #include <map>
+#include <sys/select.h>
 
 
 #define PORT 8081
@@ -106,25 +107,64 @@ void receiveFileFromServer(int client_fd, const char *file_path) {
     }
     char buffer[BUFFER_SIZE];
     size_t total_bytes_received = 0;
-    int bytes_received;
-    while ((bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0) {
-        total_bytes_received += bytes_received;
-        fwrite(buffer, 1, bytes_received, file);
-        std::cout<< "total_bytes_received: "<< total_bytes_received<<std::endl;
+    fd_set readfds;
+    struct timeval timeout;
+
+    while (total_bytes_received < file_size) {
+        FD_ZERO(&readfds);
+        FD_SET(client_fd, &readfds);
+
+        timeout.tv_sec = 90;
+        timeout.tv_usec = 0;
+
+        int ready = select(client_fd + 1, &readfds, NULL, NULL, &timeout);
+
+        if (ready == -1) {
+            perror("Select error");
+            fclose(file);
+            close(client_fd);
+            remove(full_path);
+            return;
+        } else if (ready == 0) {
+            printf("\nTimeout: No additional data received from server\n");
+            break;
+        }
+
+        int bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0);
+        if (bytes_received > 0) {
+            fwrite(buffer, 1, bytes_received, file);
+            total_bytes_received += bytes_received;
+            std::cout << "total_bytes_received: " << total_bytes_received << std::endl;
+        } else if (bytes_received == 0) {
+            printf("\nThe connection was closed before the complete file was received, or the file was invalid\n");
+            break;
+        } else {
+            perror("Error receiving data");
+            fclose(file);
+            close(client_fd);
+            remove(full_path);
+            return;
+        }
+
+        if (total_bytes_received == file_size) {
+            break;
+        }
     }
+
     if (total_bytes_received != file_size) {
-        std::cout<< "total_bytes_received: "<< total_bytes_received <<" filesize: "<< file_size<<std::endl;
+        std::cout << "total_bytes_received: " << total_bytes_received << " filesize: " << file_size << std::endl;
         printf("\nReceived file size doesn't match expected size\n");
+        fclose(file);
+        close(client_fd);
+        remove(full_path);
+        return;
     }
-    fclose(file);
 }
 void downloadFileFromServer(int client_fd, const char *file_path) {
 
     sendFilenameToServer(client_fd, file_path);
 
     receiveFileFromServer(client_fd, file_path);
-
-    printf("File downloaded\n");
 
     close(client_fd);
 }

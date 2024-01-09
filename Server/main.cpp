@@ -97,7 +97,7 @@ void receiveFileFromClient(int client_fd) {
 
     size_t data_length;
     int received = recv(client_fd, &data_length, sizeof(size_t), 0);
-
+    std::cout<< "recv: "<< received <<std::endl;
     if (received > 0) {
         received = recv(client_fd, filename_buffer, data_length, 0);
         filename_buffer[data_length] = '\0';
@@ -118,21 +118,59 @@ void receiveFileFromClient(int client_fd) {
         exit(EXIT_FAILURE);
     }
 
-    size_t total_bytes_received = 0;
-    int bytes_received;
+    fd_set readfds;
+    struct timeval timeout;
 
-    while ((bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0)) > 0) {
-        total_bytes_received += bytes_received;
-        fwrite(buffer, 1, bytes_received, received_file);
-        std::cout<< "total_bytes_received: "<< total_bytes_received<<std::endl;
+    size_t total_bytes_received = 0;
+    while (total_bytes_received < file_size) {
+        FD_ZERO(&readfds);
+        FD_SET(client_fd, &readfds);
+
+        timeout.tv_sec = 90;
+        timeout.tv_usec = 0;
+
+        int ready = select(client_fd + 1, &readfds, NULL, NULL, &timeout);
+
+        if (ready == -1) {
+            perror("Select error");
+            fclose(received_file);
+            close(client_fd);
+            remove(file_save_path);
+            return;
+        } else if (ready == 0) {
+            printf("\nTimeout: No additional data received from server\n");
+            break;
+        }
+
+        int bytes_received = recv(client_fd, buffer, BUFFER_SIZE, 0);
+        if (bytes_received > 0) {
+            fwrite(buffer, 1, bytes_received, received_file);
+            total_bytes_received += bytes_received;
+            std::cout << "total_bytes_received: " << total_bytes_received << std::endl;
+        } else if (bytes_received == 0) {
+            printf("\nThe connection was closed before the complete file was received, or the file was invalid\n");
+            break;
+        } else {
+            perror("Error receiving data");
+            fclose(received_file);
+            close(client_fd);
+            remove(file_save_path);
+            return;
+        }
+
+        if (total_bytes_received == file_size) {
+            break;
+        }
     }
 
     if (total_bytes_received != file_size) {
-        std::cout<< "total_bytes_received: "<< total_bytes_received <<" filesize: "<< file_size<<std::endl;
+        std::cout << "total_bytes_received: " << total_bytes_received << " filesize: " << file_size << std::endl;
         printf("\nReceived file size doesn't match expected size\n");
+        fclose(received_file);
+        close(client_fd);
+        remove(file_save_path);
+        return;
     }
-
-    fclose(received_file);
     writeFileInfo(filename_buffer, RECEIVE_ACTION);
 }
 void sendFileToClient(int client_fd) {
